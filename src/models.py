@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 
-
 class BasicConvClassifier(nn.Module):
     def __init__(
         self,
@@ -26,16 +25,9 @@ class BasicConvClassifier(nn.Module):
         )
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """_summary_
-        Args:
-            X ( b, c, t ): _description_
-        Returns:
-            X ( b, num_classes ): _description_
-        """
+        X = X.float()
         X = self.blocks(X)
-
         return self.head(X)
-
 
 class ConvBlock(nn.Module):
     def __init__(
@@ -52,8 +44,7 @@ class ConvBlock(nn.Module):
 
         self.conv0 = nn.Conv1d(in_dim, out_dim, kernel_size, padding="same")
         self.conv1 = nn.Conv1d(out_dim, out_dim, kernel_size, padding="same")
-        # self.conv2 = nn.Conv1d(out_dim, out_dim, kernel_size) # , padding="same")
-        
+
         self.batchnorm0 = nn.BatchNorm1d(num_features=out_dim)
         self.batchnorm1 = nn.BatchNorm1d(num_features=out_dim)
 
@@ -61,16 +52,18 @@ class ConvBlock(nn.Module):
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         if self.in_dim == self.out_dim:
-            X = self.conv0(X) + X  # skip connection
+            residual = X
         else:
-            X = self.conv0(X)
+            residual = 0
 
-        X = F.gelu(self.batchnorm0(X))
+        X = self.conv0(X)
+        X = self.batchnorm0(X)
+        X = F.gelu(X)
 
-        X = self.conv1(X) + X  # skip connection
-        X = F.gelu(self.batchnorm1(X))
+        X = self.conv1(X)
+        X = self.batchnorm1(X)
+        X = F.gelu(X)
 
-        # X = self.conv2(X)
-        # X = F.glu(X, dim=-2)
+        X += residual  # skip connection
 
         return self.dropout(X)
